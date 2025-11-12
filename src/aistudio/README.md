@@ -32,24 +32,27 @@ All documentation accessible via MCP resources protocol:
 
 ## Installation
 
-### Using uv (recommended)
+### **Recommended: Standalone Script (No Installation Required)**
+
+The easiest way to use this server is with the standalone script:
+
+```bash
+python /path/to/src/aistudio/aistudio_mcp_server.py
+```
+
+**No dependencies or installation needed** - just point to the file!
+
+### Alternative: Using uv (for package installation)
 
 ```bash
 # No installation needed - use uvx directly
 uvx mcp-server-aistudio
 ```
 
-### Using pip
+### Alternative: Using pip
 
 ```bash
 pip install mcp-server-aistudio
-```
-
-### From source
-
-```bash
-cd src/aistudio
-uv pip install -e .
 ```
 
 ## Prerequisites
@@ -65,24 +68,34 @@ playwright install chromium
 
 ## Configuration
 
-### Claude Desktop
+### **Recommended: Standalone Script**
 
-Add to `claude_desktop_config.json`:
+Add to `claude_desktop_config.json` or `.mcp.json`:
 
 ```json
 {
   "mcpServers": {
     "aistudio": {
-      "command": "uvx",
-      "args": ["mcp-server-aistudio"]
+      "command": "python",
+      "args": ["/absolute/path/to/src/aistudio/aistudio_mcp_server.py"]
     }
   }
 }
 ```
 
-### VS Code / Claude Code
+**Example (absolute path):**
+```json
+{
+  "mcpServers": {
+    "aistudio": {
+      "command": "python",
+      "args": ["/home/user/mcpservers/src/aistudio/aistudio_mcp_server.py"]
+    }
+  }
+}
+```
 
-Add to `.mcp.json` in your project or global config:
+### Alternative: Using uvx
 
 ```json
 {
