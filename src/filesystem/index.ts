@@ -640,15 +640,20 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   }
 });
 
-// Updates allowed directories based on MCP client roots
+// Store original command-line directories to preserve them during merges
+const commandLineDirectories = [...allowedDirectories];
+
+// Updates allowed directories based on MCP client roots (merges with command-line args)
 async function updateAllowedDirectoriesFromRoots(requestedRoots: Root[]) {
   const validatedRootDirs = await getValidRootDirectories(requestedRoots);
   if (validatedRootDirs.length > 0) {
-    allowedDirectories = [...validatedRootDirs];
+    // Merge command-line directories with client roots (deduplicated)
+    const mergedDirs = [...new Set([...commandLineDirectories, ...validatedRootDirs])];
+    allowedDirectories = mergedDirs;
     setAllowedDirectories(allowedDirectories); // Update the global state in lib.ts
-    console.error(`Updated allowed directories from MCP roots: ${validatedRootDirs.length} valid directories`);
+    console.error(`Merged allowed directories: ${commandLineDirectories.length} from args + ${validatedRootDirs.length} from client roots = ${mergedDirs.length} total`);
   } else {
-    console.error("No valid root directories provided by client");
+    console.error("No valid root directories provided by client, keeping command-line directories");
   }
 }
 

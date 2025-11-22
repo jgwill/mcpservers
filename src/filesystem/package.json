@@ -1,14 +1,20 @@
 {
-  "name": "@modelcontextprotocol/server-filesystem",
-  "version": "0.6.3",
-  "description": "MCP server for filesystem access",
+  "name": "jgwill-mcp-server-filesystem",
+  "version": "0.6.4",
+  "description": "MCP server for filesystem access - fork that merges command-line args with client roots",
   "license": "MIT",
-  "author": "Anthropic, PBC (https://anthropic.com)",
-  "homepage": "https://modelcontextprotocol.io",
-  "bugs": "https://github.com/modelcontextprotocol/servers/issues",
+  "author": "jgwill",
+  "homepage": "https://github.com/jgwill/mcps",
+  "bugs": "https://github.com/jgwill/mcps/issues",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jgwill/mcps.git",
+    "directory": "src/filesystem"
+  },
+  "keywords": ["mcp", "filesystem", "model-context-protocol"],
   "type": "module",
   "bin": {
-    "mcp-server-filesystem": "dist/index.js"
+    "jgwill-mcp-server-filesystem": "dist/index.js"
   },
   "files": [
     "dist"
