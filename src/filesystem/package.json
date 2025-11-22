@@ -1,6 +1,6 @@
 {
   "name": "jgwill-mcp-server-filesystem",
-  "version": "0.6.4",
+  "version": "0.6.5",
   "description": "MCP server for filesystem access - fork that merges command-line args with client roots",
   "license": "MIT",
   "author": "jgwill",
@@ -11,7 +11,11 @@
     "url": "https://github.com/jgwill/mcps.git",
     "directory": "src/filesystem"
   },
-  "keywords": ["mcp", "filesystem", "model-context-protocol"],
+  "keywords": [
+    "mcp",
+    "filesystem",
+    "model-context-protocol"
+  ],
   "type": "module",
   "bin": {
     "jgwill-mcp-server-filesystem": "dist/index.js"
