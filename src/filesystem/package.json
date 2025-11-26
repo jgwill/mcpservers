@@ -1,6 +1,6 @@
 {
   "name": "jgwill-mcp-server-filesystem",
-  "version": "0.6.5",
+  "version": "0.6.7",
   "description": "MCP server for filesystem access - fork that merges command-line args with client roots",
   "license": "MIT",
   "author": "jgwill",

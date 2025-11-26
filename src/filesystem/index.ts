@@ -146,6 +146,23 @@ const GetFileInfoArgsSchema = z.object({
 const ToolInputSchema = ToolSchema.shape.inputSchema;
 type ToolInput = z.infer<typeof ToolInputSchema>;
 
+// Helper to normalize schema for Gemini CLI compatibility
+// Ensures inputSchema.type is always the string "object" and removes extra properties
+function normalizeSchema(schema: ReturnType<typeof zodToJsonSchema>): ToolInput {
+  const s = schema as Record<string, unknown>;
+  // Build clean schema with only essential properties
+  const normalized: Record<string, unknown> = {
+    type: "object",
+    properties: s.properties || {},
+    required: s.required || [],
+  };
+  // Include additionalProperties if present
+  if (s.additionalProperties !== undefined) {
+    normalized.additionalProperties = s.additionalProperties;
+  }
+  return normalized as ToolInput;
+}
+
 // Server setup
 const server = new Server(
   {
@@ -184,7 +201,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       {
         name: "read_file",
         description: "Read the complete contents of a file as text. DEPRECATED: Use read_text_file instead.",
-        inputSchema: zodToJsonSchema(ReadTextFileArgsSchema) as ToolInput,
+        inputSchema: normalizeSchema(zodToJsonSchema(ReadTextFileArgsSchema)),
       },
       {
         name: "read_text_file",
@@ -196,14 +213,14 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           "the first N lines of a file, or the 'tail' parameter to read only " +
           "the last N lines of a file. Operates on the file as text regardless of extension. " +
           "Only works within allowed directories.",
-        inputSchema: zodToJsonSchema(ReadTextFileArgsSchema) as ToolInput,
+        inputSchema: normalizeSchema(zodToJsonSchema(ReadTextFileArgsSchema)),
       },
       {
         name: "read_media_file",
         description:
           "Read an image or audio file. Returns the base64 encoded data and MIME type. " +
           "Only works within allowed directories.",
-        inputSchema: zodToJsonSchema(ReadMediaFileArgsSchema) as ToolInput,
+        inputSchema: normalizeSchema(zodToJsonSchema(ReadMediaFileArgsSchema)),
       },
       {
         name: "read_multiple_files",
@@ -213,7 +230,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           "or compare multiple files. Each file's content is returned with its " +
           "path as a reference. Failed reads for individual files won't stop " +
           "the entire operation. Only works within allowed directories.",
-        inputSchema: zodToJsonSchema(ReadMultipleFilesArgsSchema) as ToolInput,
+        inputSchema: normalizeSchema(zodToJsonSchema(ReadMultipleFilesArgsSchema)),
       },
       {
         name: "write_file",
@@ -221,7 +238,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           "Create a new file or completely overwrite an existing file with new content. " +
           "Use with caution as it will overwrite existing files without warning. " +
           "Handles text content with proper encoding. Only works within allowed directories.",
-        inputSchema: zodToJsonSchema(WriteFileArgsSchema) as ToolInput,
+        inputSchema: normalizeSchema(zodToJsonSchema(WriteFileArgsSchema)),
       },
       {
         name: "edit_file",
@@ -229,7 +246,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           "Make line-based edits to a text file. Each edit replaces exact line sequences " +
           "with new content. Returns a git-style diff showing the changes made. " +
           "Only works within allowed directories.",
-        inputSchema: zodToJsonSchema(EditFileArgsSchema) as ToolInput,
+        inputSchema: normalizeSchema(zodToJsonSchema(EditFileArgsSchema)),
       },
       {
         name: "create_directory",
@@ -238,7 +255,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           "nested directories in one operation. If the directory already exists, " +
           "this operation will succeed silently. Perfect for setting up directory " +
           "structures for projects or ensuring required paths exist. Only works within allowed directories.",
-        inputSchema: zodToJsonSchema(CreateDirectoryArgsSchema) as ToolInput,
+        inputSchema: normalizeSchema(zodToJsonSchema(CreateDirectoryArgsSchema)),
       },
       {
         name: "list_directory",
@@ -247,7 +264,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           "Results clearly distinguish between files and directories with [FILE] and [DIR] " +
           "prefixes. This tool is essential for understanding directory structure and " +
           "finding specific files within a directory. Only works within allowed directories.",
-        inputSchema: zodToJsonSchema(ListDirectoryArgsSchema) as ToolInput,
+        inputSchema: normalizeSchema(zodToJsonSchema(ListDirectoryArgsSchema)),
       },
       {
         name: "list_directory_with_sizes",
@@ -256,7 +273,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           "Results clearly distinguish between files and directories with [FILE] and [DIR] " +
           "prefixes. This tool is useful for understanding directory structure and " +
           "finding specific files within a directory. Only works within allowed directories.",
-        inputSchema: zodToJsonSchema(ListDirectoryWithSizesArgsSchema) as ToolInput,
+        inputSchema: normalizeSchema(zodToJsonSchema(ListDirectoryWithSizesArgsSchema)),
       },
       {
         name: "directory_tree",
@@ -265,7 +282,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             "Each entry includes 'name', 'type' (file/directory), and 'children' for directories. " +
             "Files have no children array, while directories always have a children array (which may be empty). " +
             "The output is formatted with 2-space indentation for readability. Only works within allowed directories.",
-        inputSchema: zodToJsonSchema(DirectoryTreeArgsSchema) as ToolInput,
+        inputSchema: normalizeSchema(zodToJsonSchema(DirectoryTreeArgsSchema)),
       },
       {
         name: "move_file",
@@ -274,7 +291,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           "and rename them in a single operation. If the destination exists, the " +
           "operation will fail. Works across different directories and can be used " +
           "for simple renaming within the same directory. Both source and destination must be within allowed directories.",
-        inputSchema: zodToJsonSchema(MoveFileArgsSchema) as ToolInput,
+        inputSchema: normalizeSchema(zodToJsonSchema(MoveFileArgsSchema)),
       },
       {
         name: "search_files",
@@ -284,7 +301,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           "Use pattern like '*.ext' to match files in current directory, and '**/*.ext' to match files in all subdirectories. " +
           "Returns full paths to all matching items. Great for finding files when you don't know their exact location. " +
           "Only searches within allowed directories.",
-        inputSchema: zodToJsonSchema(SearchFilesArgsSchema) as ToolInput,
+        inputSchema: normalizeSchema(zodToJsonSchema(SearchFilesArgsSchema)),
       },
       {
         name: "get_file_info",
@@ -293,7 +310,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           "information including size, creation time, last modified time, permissions, " +
           "and type. This tool is perfect for understanding file characteristics " +
           "without reading the actual content. Only works within allowed directories.",
-        inputSchema: zodToJsonSchema(GetFileInfoArgsSchema) as ToolInput,
+        inputSchema: normalizeSchema(zodToJsonSchema(GetFileInfoArgsSchema)),
       },
       {
         name: "list_allowed_directories",
