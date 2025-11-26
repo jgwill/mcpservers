@@ -23,6 +23,7 @@ Typically, each MCP server is implemented with an MCP SDK:
 
 These servers aim to demonstrate MCP features and the official SDKs.
 
+- **[AI Studio](src/aistudio)** - Google AI Studio automation with Playwright, providing tools, resources, and prompts for end-to-end development workflows from project creation through deployment to Cloud Run.
 - **[Everything](src/everything)** - Reference / test server with prompts, resources, and tools.
 - **[Fetch](src/fetch)** - Web content fetching and conversion for efficient LLM usage.
 - **[Filesystem](src/filesystem)** - Secure file operations with configurable access controls.
@@ -30,6 +31,7 @@ These servers aim to demonstrate MCP features and the official SDKs.
 - **[Memory](src/memory)** - Knowledge graph-based persistent memory system.
 - **[Sequential Thinking](src/sequentialthinking)** - Dynamic and reflective problem-solving through thought sequences.
 - **[Time](src/time)** - Time and timezone conversion capabilities.
+- **[v0 Deployer](src/v0deployer)** - v0.dev deployment automation with Playwright, providing tools, resources, and prompts for seamless Vercel deployment workflows.
 
 ### Archived
 
