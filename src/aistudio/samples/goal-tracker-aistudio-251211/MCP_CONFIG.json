@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "aistudio": {
+      "command": "/home/jgi/anaconda3/envs/src/bin/mcp-server-aistudio",
+      "env": {
+        "AISTUDIO_USER_DATA_DIR": "/src/home/mia/.config/jgwillwright/profiles/miadefault"
+      }
+    },
+    "playwright": {
+      "command": "npx",
+      "args": [
+        "@playwright/mcp@latest",
+        "--user-data-dir",
+        "/src/home/mia/.config/jgwillwright/profiles/miadefault"
+      ]
+    }
+  }
+}

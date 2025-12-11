@@ -1,0 +1,53 @@
+# Goal Tracker - Initial AIStudio Prompt
+
+Use this prompt with Gemini in AIStudio to bootstrap the project.
+
+---
+
+## Prompt Text
+
+```
+Create a simple Goal Tracker web application.
+
+Core Features:
+1. Add new goals (text input + button)
+2. Display list of all goals
+3. Mark goals complete/incomplete (checkbox)
+4. Delete goals (delete button)
+5. Persist goals in LocalStorage
+
+Technical Stack:
+- React 19.2.1
+- TypeScript
+- Tailwind CSS
+- Vite for build
+
+Design:
+- Clean, minimal interface
+- Center-aligned layout
+- Simple card-based goal display
+- Color indicator for completed goals (gray out completed)
+- No backend required
+
+Implementation Details:
+- Single component or simple component tree
+- Goal object: { id, text, completed, createdAt }
+- All state in React (no external state management)
+- localStorage key: "goals"
+
+Success Criteria:
+- User can add goals
+- Goals display immediately
+- Completion toggle works
+- Delete removes goal
+- Refresh page persists goals via localStorage
+```
+
+---
+
+## Execution Notes
+
+- Send this prompt to Gemini in AIStudio
+- Wait 90+ seconds for implementation
+- Verify code appears in editor
+- Proceed to commit & deploy step
