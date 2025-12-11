@@ -41,21 +41,91 @@ mcp = FastMCP(name="aistudio")
 async def aistudio_login() -> dict:
     """Authenticate to Google AI Studio and save session state."""
     logger.info("Starting AI Studio authentication...")
+    automation = AIStudioAutomation()
     try:
-        automation = AIStudioAutomation()
         context, page = await automation.login_aistudio()
 
-        await context.storage_state(path=str(STORAGE_STATE_PATH))
+        # With persistent context, profile is auto-saved
+        # No need to save storage_state separately
+        logger.info(f"✅ Session persisted in browser profile: {automation.user_data_dir}")
+
+        # Clean up
         await context.close()
-        await page.context.browser.close()
+        if automation.browser:
+            await automation.browser.close()
+        await automation.playwright.stop()
 
         return {
             "status": "success",
-            "message": f"Authenticated to AI Studio. Session saved to {STORAGE_STATE_PATH}",
-            "storage_state_path": str(STORAGE_STATE_PATH)
+            "message": f"Authenticated to AI Studio. Profile saved to {automation.user_data_dir}",
+            "user_data_dir": str(automation.user_data_dir)
         }
     except Exception as e:
         logger.error(f"Authentication failed: {e}")
+        # Try to cleanup on error
+        try:
+            if automation.context:
+                await automation.context.close()
+            if automation.browser:
+                await automation.browser.close()
+            if automation.playwright:
+                await automation.playwright.stop()
+        except:
+            pass
+        return {
+            "status": "error",
+            "error": str(e)
+        }
+
+
+@mcp.tool()
+async def aistudio_create_project(
+    prompt: str,
+    project_name: Optional[str] = None
+) -> dict:
+    """Create new AI Studio project and send initial prompt to Gemini."""
+    logger.info(f"Creating new AI Studio project: {project_name or '(auto-generated)'}")
+    try:
+        automation = AIStudioAutomation()
+
+        # Use existing persistent context (from previous login)
+        # Launch persistent context
+        automation.playwright = await asyncio.get_event_loop().run_in_executor(
+            None, lambda: asyncio.run(async_playwright().start())
+        )
+        # Actually, we need to properly start playwright
+        from playwright.async_api import async_playwright
+        automation.playwright = await async_playwright().start()
+
+        logger.info(f"📁 Using browser profile: {automation.user_data_dir}")
+        automation.context = await automation.playwright.chromium.launch_persistent_context(
+            user_data_dir=automation.user_data_dir,
+            headless=False
+        )
+        automation.page = automation.context.pages[0] if automation.context.pages else await automation.context.new_page()
+
+        # Create project and send prompt
+        result = await automation.create_project_and_send_prompt(
+            prompt=prompt,
+            project_name=project_name
+        )
+
+        # Keep context open for subsequent operations (wait_for_implementation, etc.)
+        # Don't close yet
+        logger.info(f"Project creation result: {result}")
+        logger.info("⚠️  Browser context kept open - close manually or use cleanup command")
+
+        return result
+    except Exception as e:
+        logger.error(f"Project creation failed: {e}")
+        # Try to cleanup on error
+        try:
+            if automation.context:
+                await automation.context.close()
+            if automation.playwright:
+                await automation.playwright.stop()
+        except:
+            pass
         return {
             "status": "error",
             "error": str(e)
@@ -281,7 +351,7 @@ async def enhance_existing_project(
 def main():
     """Main entry point for the server - this is a regular function, not async."""
     logger.info("AI Studio MCP Server starting...")
-    logger.info("Available tools: aistudio_login, aistudio_create_repo, aistudio_commit_and_deploy, aistudio_clone_repository, aistudio_wait_for_implementation")
+    logger.info("Available tools: aistudio_login, aistudio_create_project, aistudio_create_repo, aistudio_commit_and_deploy, aistudio_clone_repository, aistudio_wait_for_implementation")
     logger.info("Available resources: Documentation via aistudio://docs/*")
     logger.info("Available prompts: create-new-project, enhance-existing-project")
     mcp.run()
