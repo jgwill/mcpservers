@@ -4,11 +4,13 @@ Configuration constants for AI Studio MCP Server.
 import os
 from pathlib import Path
 
-# Browser profile directory (can be overridden via environment or args)
-USER_DATA_DIR = os.getenv(
-    "AISTUDIO_USER_DATA_DIR",
-    str(Path("/src/home/mia/.config/jgwillwright/profiles/miadefault"))
-)
+# Browser profile directory (MUST be set via AISTUDIO_USER_DATA_DIR environment variable)
+USER_DATA_DIR = os.getenv("AISTUDIO_USER_DATA_DIR")
+if not USER_DATA_DIR:
+    raise ValueError(
+        "AISTUDIO_USER_DATA_DIR environment variable must be set. "
+        "Configure it in your MCP settings JSON."
+    )
 
 # Storage paths (legacy, user-data-dir is preferred)
 STORAGE_STATE_PATH = Path.home() / ".playwright" / "aistudio_auth_state.json"

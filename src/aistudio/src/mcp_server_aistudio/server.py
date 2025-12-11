@@ -88,12 +88,7 @@ async def aistudio_create_project(
     try:
         automation = AIStudioAutomation()
 
-        # Use existing persistent context (from previous login)
-        # Launch persistent context
-        automation.playwright = await asyncio.get_event_loop().run_in_executor(
-            None, lambda: asyncio.run(async_playwright().start())
-        )
-        # Actually, we need to properly start playwright
+        # Start playwright and launch persistent context
         from playwright.async_api import async_playwright
         automation.playwright = await async_playwright().start()
 

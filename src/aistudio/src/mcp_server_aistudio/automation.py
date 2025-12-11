@@ -122,6 +122,8 @@ class AIStudioAutomation:
         """
         Create a new AI Studio project and send initial prompt to Gemini.
 
+        Automatically handles authentication if not already logged in.
+
         Args:
             prompt: The implementation prompt to send to Gemini
             project_name: Optional project name (will be auto-generated if not provided)
@@ -130,7 +132,7 @@ class AIStudioAutomation:
             Dict: Project URL, status, and metadata
 
         Process:
-        1. Ensure authenticated (use existing context from login)
+        1. Check if authenticated, if not run login flow
         2. Navigate to AI Studio apps page
         3. Click "New" button
         4. Wait for new project to load
@@ -141,20 +143,63 @@ class AIStudioAutomation:
         logger.info("Creating new AI Studio project...")
 
         try:
-            # Ensure we have an active context
+            # Check if we need to authenticate first
             if not self.context or not self.page:
-                logger.error("No active browser context. Run login first.")
-                return {
-                    "status": "error",
-                    "error": "Not authenticated - run aistudio_login first"
-                }
+                logger.info("No active session - starting login flow...")
+                await self.login_aistudio()
+                logger.info("Login flow completed")
 
-            # Navigate directly to new prompt page
-            logger.info(f"Current URL before navigation: {self.page.url}")
-            await self.page.goto("https://aistudio.google.com/prompts/new", wait_until="domcontentloaded")
-            logger.info(f"Navigated to: {self.page.url}")
+            # Verify we're actually logged in by checking the page
+            logger.info(f"Checking authentication status at: {self.page.url}")
 
-            # Wait for page to fully load
+            # If we're on a login page, wait for user to authenticate
+            if "accounts.google.com" in self.page.url or "login" in self.page.url.lower():
+                logger.info("👤 Please log in to your Google account in the browser")
+                logger.info("⏳ Waiting for authentication to complete...")
+
+                # Wait for navigation away from login page
+                try:
+                    await self.page.wait_for_url("**/app**", timeout=300000)  # 5 min
+                    logger.info("✅ Authentication completed")
+                except:
+                    # Also accept being on the apps page
+                    if "aistudio.google.com" in self.page.url and "accounts.google.com" not in self.page.url:
+                        logger.info("✅ Already authenticated")
+                    else:
+                        return {
+                            "status": "error",
+                            "error": "Authentication timeout - please try again"
+                        }
+
+            # Navigate to apps page
+            await self.page.goto("https://aistudio.google.com/apps")
+            await asyncio.sleep(NAVIGATION_WAIT)
+            logger.info("Navigated to AI Studio apps page")
+
+            # Close "Got it" popup if present
+            try:
+                got_it_button = self.page.get_by_role('button', name='Got it')
+                if await got_it_button.is_visible(timeout=3000):
+                    await got_it_button.click()
+                    logger.info("Closed 'Got it' popup")
+                    await asyncio.sleep(2)
+            except:
+                logger.info("No 'Got it' popup found (already dismissed)")
+
+            # Debug: List all buttons to find the correct selector
+            all_buttons = await self.page.locator('button').all()
+            logger.info(f"📋 Found {len(all_buttons)} buttons on page")
+            for i, btn in enumerate(all_buttons[:10]):  # Log first 10 buttons
+                text = await btn.text_content()
+                logger.info(f"  Button {i}: '{text.strip() if text else ''}'")
+
+            # Click "New" button to create project
+            # Try without exact match first
+            new_button = self.page.locator('button:has-text("New")').first
+            await new_button.click()
+            logger.info("Clicked 'New' button")
+
+            # Wait for new project to load
             await asyncio.sleep(DIALOG_LOAD_WAIT)
             logger.info("New project page loaded")
 

@@ -56,7 +56,7 @@ async def cmd_login(args):
 
 
 async def cmd_create_project(args):
-    """Create new AI Studio project."""
+    """Create new AI Studio project (handles login automatically if needed)."""
     logger.info(f"Creating project with prompt from: {args.prompt_file}")
 
     try:
@@ -69,20 +69,10 @@ async def cmd_create_project(args):
         prompt = prompt_file.read_text(encoding="utf-8")
         logger.info(f"Read prompt ({len(prompt)} chars)")
 
+        # Initialize automation (it will handle login automatically)
         automation = AIStudioAutomation()
 
-        # Launch persistent context
-        from playwright.async_api import async_playwright
-        automation.playwright = await async_playwright().start()
-
-        logger.info(f"📁 Using browser profile: {automation.user_data_dir}")
-        automation.context = await automation.playwright.chromium.launch_persistent_context(
-            user_data_dir=automation.user_data_dir,
-            headless=False
-        )
-        automation.page = automation.context.pages[0] if automation.context.pages else await automation.context.new_page()
-
-        # Create project and send prompt
+        # Create project and send prompt (login handled internally)
         result = await automation.create_project_and_send_prompt(
             prompt=prompt,
             project_name=args.project_name
