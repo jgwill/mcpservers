@@ -176,64 +176,93 @@ class AIStudioAutomation:
             await asyncio.sleep(NAVIGATION_WAIT)
             logger.info("Navigated to AI Studio apps page")
 
+            # Close terms/privacy dialog if present
+            try:
+                agree_button = self.page.get_by_role('button', name='Agree')
+                if await agree_button.is_visible(timeout=2000):
+                    await agree_button.click()
+                    logger.info("Clicked 'Agree' on terms dialog")
+                    await asyncio.sleep(1)
+            except:
+                pass
+
             # Close "Got it" popup if present
             try:
                 got_it_button = self.page.get_by_role('button', name='Got it')
-                if await got_it_button.is_visible(timeout=3000):
+                if await got_it_button.is_visible(timeout=2000):
                     await got_it_button.click()
                     logger.info("Closed 'Got it' popup")
-                    await asyncio.sleep(2)
+                    await asyncio.sleep(1)
             except:
-                logger.info("No 'Got it' popup found (already dismissed)")
+                pass
 
-            # Debug: List all buttons to find the correct selector
-            all_buttons = await self.page.locator('button').all()
-            logger.info(f"📋 Found {len(all_buttons)} buttons on page")
-            for i, btn in enumerate(all_buttons[:10]):  # Log first 10 buttons
-                text = await btn.text_content()
-                logger.info(f"  Button {i}: '{text.strip() if text else ''}'")
-
-            # Click "New" button to create project
-            # Try without exact match first
-            new_button = self.page.locator('button:has-text("New")').first
-            await new_button.click()
-            logger.info("Clicked 'New' button")
-
-            # Wait for new project to load
-            await asyncio.sleep(DIALOG_LOAD_WAIT)
-            logger.info("New project page loaded")
-
-            # Wait for prompt input to be visible
-            prompt_input = self.page.locator('textarea[placeholder*="prompt" i], textarea[aria-label*="prompt" i]').first
-            try:
-                await prompt_input.wait_for(state="visible", timeout=15000)
-                logger.info("New project loaded")
-            except Exception as e:
-                logger.warning(f"Could not find prompt input by placeholder/aria-label: {e}")
-                # Try generic textarea as fallback
-                prompt_input = self.page.locator('textarea').first
-
-            # Send prompt to Gemini
-            logger.info(f"Sending prompt to Gemini (length: {len(prompt)} chars)...")
-            await prompt_input.fill(prompt)
+            # Fill prompt textbox
+            logger.info(f"Filling prompt (length: {len(prompt)} chars)...")
+            textbox = self.page.get_by_role('textbox', name='Enter a prompt to generate an')
+            await textbox.fill(prompt)
             logger.info("Prompt filled")
 
-            # Press Enter or click Send button to submit
-            send_button = self.page.locator('button[aria-label*="Send" i], button:has-text("Send")')
-            if await send_button.is_visible():
-                await send_button.click()
-                logger.info("Clicked 'Send' button")
-            else:
-                # Fallback: press Enter
-                await prompt_input.press("Enter")
-                logger.info("Pressed Enter to send prompt")
+            # Click "Build" button (becomes enabled after typing)
+            build_button = self.page.get_by_role('button', name='Build', exact=True)
+            await build_button.click()
+            logger.info("Clicked 'Build' - Gemini implementation starting...")
 
-            # Wait a moment for submission
-            await asyncio.sleep(VERIFICATION_RETRY_WAIT)
+            # Wait for URL to change to temp project
+            logger.info("⏳ Waiting for temp project creation...")
+            try:
+                await self.page.wait_for_url("**/apps/temp/**", timeout=30000)
+                logger.info("✅ Temp project created, Gemini implementing...")
+            except:
+                logger.warning("Didn't navigate to temp project")
 
-            # Extract project URL from current page
+            # Poll for completion: wait for "Finished" message or URL change to /apps/drive/
+            logger.info("⏳ Waiting for Gemini to finish implementation (may take several minutes)...")
+            max_wait = 600  # 10 minutes
+            start_time = asyncio.get_event_loop().time()
+
+            while (asyncio.get_event_loop().time() - start_time) < max_wait:
+                current_url = self.page.url
+
+                # CHECK FOR ERRORS FIRST
+                try:
+                    error_text = await self.page.get_by_text("An internal error occurred").is_visible(timeout=1000)
+                    if error_text:
+                        logger.error("❌ AIStudio internal error detected")
+                        return {
+                            "status": "error",
+                            "error": "AIStudio internal error occurred during implementation",
+                            "app_url": current_url
+                        }
+                except:
+                    pass
+
+                # Check if URL changed to permanent project
+                if "/apps/drive/" in current_url:
+                    logger.info("✅ URL changed to permanent project")
+                    break
+
+                # Check for "Finished" status text
+                try:
+                    if await self.page.get_by_text("Finished").is_visible(timeout=1000):
+                        logger.info("✅ Gemini finished implementation")
+                        await asyncio.sleep(3)  # Wait for URL to update
+                        break
+                except:
+                    pass
+
+                # Log progress every 30 seconds
+                elapsed = int(asyncio.get_event_loop().time() - start_time)
+                if elapsed % 30 == 0 and elapsed > 0:
+                    logger.info(f"⏳ Still waiting... ({elapsed}s elapsed)")
+
+                await asyncio.sleep(5)
+
+            # Extract final project URL
             app_url = self.page.url
-            logger.info(f"Project created at: {app_url}")
+            if "/apps/drive/" in app_url:
+                logger.info(f"📝 Project URL: {app_url}")
+            else:
+                logger.warning(f"⚠️  Implementation may not be complete. URL: {app_url}")
 
             # Optionally rename project if project_name provided
             if project_name:
