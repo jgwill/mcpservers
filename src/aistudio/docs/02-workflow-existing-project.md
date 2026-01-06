@@ -215,6 +215,9 @@ Wait for save confirmation (no "Unsaved changes" indicator).
 
 ## #Step-7: Redeploy-Application
 
+### ⚠️ CRITICAL: REDEPLOY Button MUST Be Clicked Manually
+**YOU MUST EXPLICITLY CLICK THE "REDEPLOY" BUTTON.** This does NOT happen automatically. If you close the dialog without clicking "Redeploy", the deployment will NOT occur. The code will be committed to GitHub but the live app will continue running the old version.
+
 ### Open Deploy Dialog
 1. Close GitHub dialog (click X)
 2. Click "Deploy app" button in AI Studio
@@ -222,9 +225,13 @@ Wait for save confirmation (no "Unsaved changes" indicator).
 
 ### Execute Redeploy
 1. Verify Google Cloud Project is selected
-2. Click "Redeploy" button in dialog
+2. **CLICK "Redeploy" button in dialog** (this is REQUIRED and NOT automatic)
 3. **Wait for deployment** (30 seconds to 2 minutes)
-4. Note the deployed URL (should be same as before)
+4. Watch for "Deployment in progress..." or similar message
+5. Note the deployed URL (should be same as before)
+
+### Verify Deployment Started
+Check browser console or page for deployment completion message before closing dialog.
 
 ### Close Dialog
 Click close button (X icon) to dismiss deploy dialog.
