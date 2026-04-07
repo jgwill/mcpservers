@@ -22,6 +22,7 @@ from playwright.async_api import async_playwright, Browser, BrowserContext, Page
 
 from .config import (
     STORAGE_STATE_PATH,
+    USER_DATA_DIR,
     GEMINI_IMPLEMENTATION_WAIT,
     DIALOG_LOAD_WAIT,
     VERIFICATION_RETRY_WAIT,
@@ -49,9 +50,15 @@ class AIStudioAutomation:
     All timing patterns follow llms-aistudio-04-browser-automation-reference.md
     """
 
-    def __init__(self, storage_state_path: Optional[Path] = None):
-        """Initialize automation helper with optional auth state."""
+    def __init__(
+        self,
+        storage_state_path: Optional[Path] = None,
+        user_data_dir: Optional[str] = None
+    ):
+        """Initialize automation helper with optional auth state or profile dir."""
         self.storage_state_path = storage_state_path or STORAGE_STATE_PATH
+        self.user_data_dir = user_data_dir or USER_DATA_DIR
+        self.playwright = None
         self.browser: Optional[Browser] = None
         self.context: Optional[BrowserContext] = None
         self.page: Optional[Page] = None
@@ -68,28 +75,220 @@ class AIStudioAutomation:
         2. Create new context
         3. Navigate to AI Studio
         4. Wait for user to authenticate
-        5. Save authentication state for reuse
+        5. Return context/page for caller to save state and close
         """
         logger.info("Starting AI Studio authentication...")
 
-        async with async_playwright() as p:
-            self.browser = await p.chromium.launch(headless=False)
-            self.context = await self.browser.new_context()
-            self.page = await self.context.new_page()
+        # Keep playwright instance alive in self
+        self.playwright = await async_playwright().start()
 
-            # Navigate to AI Studio
-            await self.page.goto("https://aistudio.google.com/apps?source=start")
-            logger.info("Navigate to AI Studio start page. Please authenticate if needed.")
+        # Launch with persistent context (user-data-dir) for shared profile
+        logger.info(f"📁 Using browser profile: {self.user_data_dir}")
+        self.context = await self.playwright.chromium.launch_persistent_context(
+            user_data_dir=self.user_data_dir,
+            headless=False
+        )
+        self.page = self.context.pages[0] if self.context.pages else await self.context.new_page()
+        self.browser = None  # Not used with persistent context
 
-            # Wait for user to authenticate and navigate to a project
-            # Typically: user signs in, AI Studio loads
-            await self.page.wait_for_load_state("networkidle", timeout=30000)
+        # Navigate to AI Studio
+        await self.page.goto("https://aistudio.google.com/apps?source=start")
+        logger.info("📝 Navigated to AI Studio")
+        logger.info("👤 Please authenticate in the browser window")
+        logger.info("⏳ Waiting for authentication (this may take a few minutes)...")
 
-            # Save authentication state for reuse
-            await self.context.storage_state(path=str(self.storage_state_path))
-            logger.info(f"Authentication successful. State saved to {self.storage_state_path}")
+        # Wait for successful authentication by looking for AI Studio app elements
+        # The apps page will have specific elements when logged in
+        try:
+            # Wait for either:
+            # 1. The "New" button (creates new project) - indicates logged in
+            # 2. Or an existing app card - indicates logged in
+            await self.page.wait_for_selector(
+                'button:has-text("New"), [role="link"][href*="/apps/drive"]',
+                timeout=300000  # 5 minutes for user to login
+            )
+            logger.info("✅ Authentication successful!")
+        except Exception as e:
+            logger.warning(f"Timeout waiting for authentication elements: {e}")
+            logger.info("Proceeding anyway - please verify you're logged in")
 
-            return self.context, self.page
+        return self.context, self.page
+
+    async def create_project_and_send_prompt(
+        self,
+        prompt: str,
+        project_name: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Create a new AI Studio project and send initial prompt to Gemini.
+
+        Automatically handles authentication if not already logged in.
+
+        Args:
+            prompt: The implementation prompt to send to Gemini
+            project_name: Optional project name (will be auto-generated if not provided)
+
+        Returns:
+            Dict: Project URL, status, and metadata
+
+        Process:
+        1. Check if authenticated, if not run login flow
+        2. Navigate to AI Studio apps page
+        3. Click "New" button
+        4. Wait for new project to load
+        5. Send prompt to Gemini
+        6. Extract project URL
+        7. Return project details
+        """
+        logger.info("Creating new AI Studio project...")
+
+        try:
+            # Check if we need to authenticate first
+            if not self.context or not self.page:
+                logger.info("No active session - starting login flow...")
+                await self.login_aistudio()
+                logger.info("Login flow completed")
+
+            # Verify we're actually logged in by checking the page
+            logger.info(f"Checking authentication status at: {self.page.url}")
+
+            # If we're on a login page, wait for user to authenticate
+            if "accounts.google.com" in self.page.url or "login" in self.page.url.lower():
+                logger.info("👤 Please log in to your Google account in the browser")
+                logger.info("⏳ Waiting for authentication to complete...")
+
+                # Wait for navigation away from login page
+                try:
+                    await self.page.wait_for_url("**/app**", timeout=300000)  # 5 min
+                    logger.info("✅ Authentication completed")
+                except:
+                    # Also accept being on the apps page
+                    if "aistudio.google.com" in self.page.url and "accounts.google.com" not in self.page.url:
+                        logger.info("✅ Already authenticated")
+                    else:
+                        return {
+                            "status": "error",
+                            "error": "Authentication timeout - please try again"
+                        }
+
+            # Navigate to apps page
+            await self.page.goto("https://aistudio.google.com/apps")
+            await asyncio.sleep(NAVIGATION_WAIT)
+            logger.info("Navigated to AI Studio apps page")
+
+            # Close terms/privacy dialog if present
+            try:
+                agree_button = self.page.get_by_role('button', name='Agree')
+                if await agree_button.is_visible(timeout=2000):
+                    await agree_button.click()
+                    logger.info("Clicked 'Agree' on terms dialog")
+                    await asyncio.sleep(1)
+            except:
+                pass
+
+            # Close "Got it" popup if present
+            try:
+                got_it_button = self.page.get_by_role('button', name='Got it')
+                if await got_it_button.is_visible(timeout=2000):
+                    await got_it_button.click()
+                    logger.info("Closed 'Got it' popup")
+                    await asyncio.sleep(1)
+            except:
+                pass
+
+            # Fill prompt textbox
+            logger.info(f"Filling prompt (length: {len(prompt)} chars)...")
+            textbox = self.page.get_by_role('textbox', name='Enter a prompt to generate an')
+            await textbox.fill(prompt)
+            logger.info("Prompt filled")
+
+            # Click "Build" button (becomes enabled after typing)
+            build_button = self.page.get_by_role('button', name='Build', exact=True)
+            await build_button.click()
+            logger.info("Clicked 'Build' - Gemini implementation starting...")
+
+            # Wait for URL to change to temp project
+            logger.info("⏳ Waiting for temp project creation...")
+            try:
+                await self.page.wait_for_url("**/apps/temp/**", timeout=30000)
+                logger.info("✅ Temp project created, Gemini implementing...")
+            except:
+                logger.warning("Didn't navigate to temp project")
+
+            # Poll for completion: wait for "Finished" message or URL change to /apps/drive/
+            logger.info("⏳ Waiting for Gemini to finish implementation (may take several minutes)...")
+            max_wait = 600  # 10 minutes
+            start_time = asyncio.get_event_loop().time()
+
+            while (asyncio.get_event_loop().time() - start_time) < max_wait:
+                current_url = self.page.url
+
+                # CHECK FOR ERRORS FIRST
+                try:
+                    error_text = await self.page.get_by_text("An internal error occurred").is_visible(timeout=1000)
+                    if error_text:
+                        logger.error("❌ AIStudio internal error detected")
+                        return {
+                            "status": "error",
+                            "error": "AIStudio internal error occurred during implementation",
+                            "app_url": current_url
+                        }
+                except:
+                    pass
+
+                # Check if URL changed to permanent project
+                if "/apps/drive/" in current_url:
+                    logger.info("✅ URL changed to permanent project")
+                    break
+
+                # Check for "Finished" status text
+                try:
+                    if await self.page.get_by_text("Finished").is_visible(timeout=1000):
+                        logger.info("✅ Gemini finished implementation")
+                        await asyncio.sleep(3)  # Wait for URL to update
+                        break
+                except:
+                    pass
+
+                # Log progress every 30 seconds
+                elapsed = int(asyncio.get_event_loop().time() - start_time)
+                if elapsed % 30 == 0 and elapsed > 0:
+                    logger.info(f"⏳ Still waiting... ({elapsed}s elapsed)")
+
+                await asyncio.sleep(5)
+
+            # Extract final project URL
+            app_url = self.page.url
+            if "/apps/drive/" in app_url:
+                logger.info(f"📝 Project URL: {app_url}")
+            else:
+                logger.warning(f"⚠️  Implementation may not be complete. URL: {app_url}")
+
+            # Optionally rename project if project_name provided
+            if project_name:
+                try:
+                    # Look for project name field (usually at the top)
+                    name_input = self.page.locator('input[placeholder*="name" i], input[aria-label*="name" i]').first
+                    if await name_input.is_visible(timeout=3000):
+                        await name_input.fill(project_name)
+                        logger.info(f"Set project name to: {project_name}")
+                except Exception as e:
+                    logger.warning(f"Could not set project name: {e}")
+
+            return {
+                "status": "success",
+                "app_url": app_url,
+                "prompt_sent": prompt[:100] + "..." if len(prompt) > 100 else prompt,
+                "created_at": datetime.now().isoformat(),
+                "next_step": "wait_for_implementation"
+            }
+
+        except Exception as e:
+            logger.error(f"Error creating project: {e}")
+            return {
+                "status": "error",
+                "error": str(e)
+            }
 
     async def open_github_panel(self, context: BrowserContext, app_url: str) -> Page:
         """

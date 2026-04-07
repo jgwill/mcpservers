@@ -22,6 +22,7 @@ dependencies = [
 
 [project.scripts]
 mcp-server-aistudio = "mcp_server_aistudio:main"
+aistudio-mcp = "mcp_server_aistudio.cli:main"
 
 [build-system]
 requires = ["hatchling"]
